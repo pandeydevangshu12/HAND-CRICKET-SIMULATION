@@ -1,0 +1,328 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+
+# ---------------------- DATA ----------------------
+teams = {
+    "India": {1: "V.Kohli", 2: "R.Sharma", 3: "S.Gill", 4: "S.Iyer", 5: "R.Jadeja",
+               6: "H.Pandaya", 7: "J.Bumrah", 8: "KL.Rahul", 9: "K.Yadav", 10: "M.Shami", 11: "M.Siraj"},
+    "Pakistan": {1: "B.Azam", 2: "F.Zaman", 3: "S.Afridi", 4: "M.Rizwan", 5: "A.Shafique",
+                  6: "H.Rauf", 7: "S.Khan", 8: "Imam-ul-Haq", 9: "I.Khan", 10: "H.Ali", 11: "Z.Khan"},
+    "England": {1: "B.Duckett", 2: "J.Root", 3: "O.Pope", 4: "Z.Crawley", 5: "B.Stokes",
+                 6: "R.Ahmed", 7: "B.Foakes", 8: "A.Rashid", 9: "J.Anderson", 10: "M.Wood", 11: "A.Cook"}
+}
+
+team_colors = {
+    "India": "#1e90ff",      # Blue
+    "Pakistan": "#228B22",   # Green
+    "England": "#B22222"     # Red
+}
+
+# ---------------------- APP ----------------------
+class HandCricketApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Hand Cricket 🏏")
+        self.root.geometry("760x640")
+        self.root.configure(bg="#1e1e2e")
+
+        # Match state
+        self.player_team = "India"
+        self.opponent_team = "Pakistan"
+        self.overs = 2
+        self.wickets = 3
+        self.player_selected_names = []
+        self.opponent_selected_names = []
+
+        # Innings state
+        self.balls_left = 0
+        self.score = 0
+        self.outs = 0
+        self.target = None
+        self.batting_first = True   # True => player bats in 1st innings
+        self.innings = 1
+
+        # UI containers
+        self.setup_frame = tk.Frame(self.root, bg="#1e1e2e")
+        self.toss_frame = tk.Frame(self.root, bg="#1e1e2e")
+        self.game_frame = tk.Frame(self.root, bg="#1e1e2e")
+        self.result_frame = tk.Frame(self.root, bg="#1e1e2e")
+
+        self.build_setup_ui()
+        self.show(self.setup_frame)
+
+    # ---------- helpers ----------
+    def show(self, frame):
+        for f in (self.setup_frame, self.toss_frame, self.game_frame, self.result_frame):
+            f.pack_forget()
+        frame.pack(fill="both", expand=True)
+
+    # ================== SETUP UI ==================
+    def build_setup_ui(self):
+        f = self.setup_frame
+        for w in f.winfo_children(): w.destroy()
+
+        tk.Label(f, text="🏏 Hand Cricket", font=("Arial", 26, "bold"), fg="cyan", bg="#1e1e2e").pack(pady=12)
+
+        # Team select
+        row = tk.Frame(f, bg="#1e1e2e"); row.pack(pady=6)
+        tk.Label(row, text="Your Team:", font=("Arial", 14, "bold"), fg="white", bg="#1e1e2e").pack(side=tk.LEFT)
+        self.team_var = tk.StringVar(value=self.player_team)
+        team_menu = tk.OptionMenu(row, self.team_var, *teams.keys(), command=lambda _: self.refresh_player_checklist())
+        team_menu.configure(bg="#61afef", fg="black", activebackground="#0d6efd")
+        team_menu.pack(side=tk.LEFT, padx=10)
+
+        # Overs & wickets
+        row2 = tk.Frame(f, bg="#1e1e2e"); row2.pack(pady=6)
+        tk.Label(row2, text="Overs:", font=("Arial", 14), fg="white", bg="#1e1e2e").pack(side=tk.LEFT)
+        self.overs_var = tk.IntVar(value=self.overs)
+        tk.Spinbox(row2, from_=1, to=20, textvariable=self.overs_var, width=5, font=("Arial", 14), justify="center").pack(side=tk.LEFT, padx=10)
+        tk.Label(row2, text="Wickets:", font=("Arial", 14), fg="white", bg="#1e1e2e").pack(side=tk.LEFT, padx=(20,0))
+        self.wkts_var = tk.IntVar(value=self.wickets)
+        tk.Spinbox(row2, from_=1, to=11, textvariable=self.wkts_var, width=5, font=("Arial", 14), justify="center", command=self.enforce_selection_count).pack(side=tk.LEFT, padx=10)
+
+        # Player checklist
+        tk.Label(f, text="Select Players (equal to wickets):", font=("Arial", 14, "bold"), fg="yellow", bg="#1e1e2e").pack(pady=(16,6))
+        self.players_holder = tk.Frame(f, bg="#1e1e2e"); self.players_holder.pack()
+        self.player_vars = {}
+        self.refresh_player_checklist()  # builds checkboxes for default team
+
+        # Start button
+        tk.Button(f, text="Continue → Toss", command=self.confirm_setup, bg="#98c379", fg="black", font=("Arial", 14, "bold"), width=18, activebackground="#5aa469").pack(pady=16)
+
+    def refresh_player_checklist(self):
+        for w in self.players_holder.winfo_children(): w.destroy()
+        self.player_vars = {}
+        team = self.team_var.get()
+        grid = tk.Frame(self.players_holder, bg="#1e1e2e"); grid.pack()
+        r,c = 0,0
+        for pid, name in teams[team].items():
+            var = tk.IntVar()
+            cb = tk.Checkbutton(grid, text=f"{pid}. {name}", variable=var, bg="#1e1e2e", fg="white", selectcolor="#333333", activebackground="#1e1e2e")
+            cb.grid(row=r, column=c, sticky="w", padx=12, pady=4)
+            self.player_vars[name] = var
+            c += 1
+            if c == 2:
+                c = 0; r += 1
+        self.enforce_selection_count()
+
+    def enforce_selection_count(self):
+        # Optional helper to visually limit but we just validate on confirm
+        return
+
+    def confirm_setup(self):
+        self.player_team = self.team_var.get()
+        self.opponent_team = random.choice([t for t in teams.keys() if t != self.player_team])
+        self.overs = int(self.overs_var.get())
+        self.wickets = int(self.wkts_var.get())
+        self.player_selected_names = [name for name, v in self.player_vars.items() if v.get()==1]
+        if len(self.player_selected_names) != self.wickets:
+            messagebox.showerror("Selection Error", f"Please select exactly {self.wickets} players.")
+            return
+        # Opponent auto-select
+        opp_list = list(teams[self.opponent_team].values())
+        random.shuffle(opp_list)
+        self.opponent_selected_names = opp_list[:self.wickets]
+        self.build_toss_ui()
+        self.show(self.toss_frame)
+
+    # ================== TOSS UI ==================
+    def build_toss_ui(self):
+        f = self.toss_frame
+        for w in f.winfo_children(): w.destroy()
+
+        tk.Label(f, text=f"You: {self.player_team}  vs  {self.opponent_team}", font=("Arial", 16, "bold"), fg="orange", bg="#1e1e2e").pack(pady=10)
+        tk.Label(f, text=f"Overs: {self.overs}  |  Wickets: {self.wickets}", font=("Arial", 13), fg="white", bg="#1e1e2e").pack()
+        tk.Label(f, text=f"Your XI: {', '.join(self.player_selected_names)}", font=("Arial", 11), fg="#dddddd", bg="#1e1e2e", wraplength=720).pack(pady=6)
+
+        board = tk.Frame(f, bg=team_colors[self.player_team], bd=6, relief="ridge"); board.pack(fill="x", pady=10)
+        self.toss_label = tk.Label(board, text="Call the Toss:", font=("Arial", 18, "bold"), fg="white", bg=team_colors[self.player_team])
+        self.toss_label.pack(pady=6)
+
+        btns = tk.Frame(f, bg="#1e1e2e"); btns.pack()
+        tk.Button(btns, text="Heads", width=10, height=2, font=("Arial", 12, "bold"), bg="gold", command=lambda: self.run_toss("Head")).grid(row=0, column=0, padx=10, pady=8)
+        tk.Button(btns, text="Tails", width=10, height=2, font=("Arial", 12, "bold"), bg="silver", command=lambda: self.run_toss("Tail")).grid(row=0, column=1, padx=10, pady=8)
+
+        self.toss_result_label = tk.Label(f, text="", font=("Arial", 16, "bold"), fg="yellow", bg="#1e1e2e")
+        self.toss_result_label.pack(pady=8)
+
+        self.choice_frame = tk.Frame(f, bg="#1e1e2e")
+        # populated only if user wins
+
+    def run_toss(self, call):
+        # simple animation: flash text for 1 second then resolve
+        self.toss_label.config(text="Tossing the coin...")
+        colors = ["#ffffff", "#ffee88", "#ffd54f", "#fff176"]
+        def flash(i=0):
+            if i < 8:
+                self.toss_label.config(fg=colors[i % len(colors)])
+                self.root.after(120, flash, i+1)
+            else:
+                result = random.choice(["Head", "Tail"])
+                self.resolve_toss(call, result)
+        flash()
+
+    def resolve_toss(self, call, toss):
+        if toss == call:
+            self.toss_result_label.config(text=f"Toss: {toss}. You won!", fg="#7CFC00")
+            for w in self.choice_frame.winfo_children(): w.destroy()
+            self.choice_frame.pack(pady=10)
+            tk.Label(self.choice_frame, text="Choose to:", font=("Arial", 14, "bold"), fg="white", bg="#1e1e2e").grid(row=0, column=0, padx=6)
+            tk.Button(self.choice_frame, text="Bat", width=10, bg="#e06c75", fg="white", font=("Arial", 12, "bold"), command=lambda: self.start_match(player_bats_first=True)).grid(row=0, column=1, padx=6)
+            tk.Button(self.choice_frame, text="Bowl", width=10, bg="#98c379", fg="black", font=("Arial", 12, "bold"), command=lambda: self.start_match(player_bats_first=False)).grid(row=0, column=2, padx=6)
+        else:
+            comp_choice = random.choice(["bat", "bowl"])
+            self.toss_result_label.config(text=f"Toss: {toss}. {self.opponent_team} chose to {comp_choice} first.", fg="#ff6b6b")
+            self.root.after(900, lambda: self.start_match(player_bats_first=(comp_choice=="bowl")))
+
+    # ================== GAMEPLAY UI ==================
+    def build_game_ui(self):
+        f = self.game_frame
+        for w in f.winfo_children(): w.destroy()
+
+        # Scoreboard header coloured by current batting side
+        color = team_colors[self.player_team] if (self.batting_first and self.innings==1) or (not self.batting_first and self.innings==2) else team_colors[self.opponent_team]
+        board = tk.Frame(f, bg=color, bd=6, relief="ridge")
+        board.pack(fill="x", pady=10)
+        self.score_label = tk.Label(board, text="Score: 0/0", font=("Arial", 18, "bold"), fg="white", bg=color)
+        self.score_label.pack(pady=4)
+        self.over_label = tk.Label(board, text=f"Overs: 0.0/{self.overs}    Target: {self.target if self.target else '-'}", font=("Arial", 14), fg="white", bg=color)
+        self.over_label.pack(pady=2)
+
+        # Feedback line
+        self.feed_label = tk.Label(f, text="Choose 1-6", font=("Arial", 14, "bold"), fg="yellow", bg="#1e1e2e")
+        self.feed_label.pack(pady=6)
+
+        # Number buttons
+        btns = tk.Frame(f, bg="#1e1e2e"); btns.pack(pady=12)
+        for i in range(1,7):
+            tk.Button(btns, text=str(i), width=5, height=2, font=("Arial", 14, "bold"), bg="#0d6efd", fg="white",
+                      activebackground="#003b95", command=lambda x=i: self.play_ball(x)).grid(row=0, column=i-1, padx=6)
+
+        # Quit/Restart
+        ctrl = tk.Frame(f, bg="#1e1e2e"); ctrl.pack(pady=8)
+        tk.Button(ctrl, text="Restart", command=self.restart, bg="#6c757d", fg="white", font=("Arial", 12, "bold"), width=10).grid(row=0, column=0, padx=8)
+        tk.Button(ctrl, text="Exit", command=self.root.destroy, bg="#dc3545", fg="white", font=("Arial", 12, "bold"), width=10).grid(row=0, column=1, padx=8)
+
+    def start_match(self, player_bats_first: bool):
+        # init innings state
+        self.batting_first = player_bats_first
+        self.innings = 1
+        self.score = 0
+        self.outs = 0
+        self.target = None
+        self.balls_left = self.overs * 6
+        self.build_game_ui()
+        self.show(self.game_frame)
+        self.update_board()
+
+    def update_board(self):
+        balls_bowled = self.overs*6 - self.balls_left if self.innings == 1 else (self.overs*6 - self.balls_left)
+        over_str = f"{balls_bowled//6}.{balls_bowled%6}"
+        self.score_label.config(text=f"Score: {self.score}/{self.outs}")
+        self.over_label.config(text=f"Overs: {over_str}/{self.overs}    Target: {self.target if self.target else '-'}")
+
+    def play_ball(self, user_choice):
+        if self.outs >= self.wickets or self.balls_left <= 0:
+            self.end_innings()
+            return
+
+        comp_choice = random.randint(1,6)
+
+        # Determine who is batting this innings
+        player_batting = (self.batting_first and self.innings==1) or ((not self.batting_first) and self.innings==2)
+
+        if player_batting:
+            # user batting
+            if user_choice == comp_choice:
+                self.outs += 1
+                self.feed_label.config(text=f"WICKET! You {user_choice} vs Comp {comp_choice}")
+            else:
+                self.score += user_choice
+                self.feed_label.config(text=f"You scored {user_choice}. Comp {comp_choice}")
+        else:
+            # computer batting, user bowls
+            if user_choice == comp_choice:
+                self.outs += 1
+                self.feed_label.config(text=f"WICKET! You {user_choice} vs Comp {comp_choice}")
+            else:
+                self.score += comp_choice
+                self.feed_label.config(text=f"Comp scored {comp_choice}. You {user_choice}")
+
+        self.balls_left -= 1
+        self.update_board()
+
+        # Early finish in chase
+        if self.innings == 2 and self.target is not None and self.score >= self.target:
+            self.end_match()
+            return
+
+        # End conditions
+        if self.outs >= self.wickets or self.balls_left == 0:
+            self.end_innings()
+
+    def end_innings(self):
+        if self.innings == 1:
+            self.target = self.score + 1
+            self.innings = 2
+            self.score = 0
+            self.outs = 0
+            self.balls_left = self.overs * 6
+            messagebox.showinfo("Innings Over", f"First Innings Over! Target = {self.target}")
+            self.build_game_ui()  # recolor header for batting side change
+            self.update_board()
+        else:
+            self.end_match()
+
+    # ================== RESULT ==================
+    def end_match(self):
+        # Decide winner message using classic margins
+        player_chased = (self.batting_first is False)
+        # If innings 2 ended with score >= target, the batting side in innings 2 won by wickets
+        player_batting_inn2 = (not self.batting_first)
+        if self.score >= (self.target or 0):
+            # winner is batting side in innings 2
+            if player_batting_inn2:
+                msg = f"You won by {self.wickets - self.outs} wickets!"
+            else:
+                msg = f"{self.opponent_team} won by {self.wickets - self.outs} wickets!"
+        else:
+            # winner is bowling side in innings 2
+            runs_margin = (self.target - 1 - self.score) if self.target else 0
+            if player_batting_inn2:
+                msg = f"{self.opponent_team} won by {runs_margin} runs!"
+            else:
+                msg = f"You won by {runs_margin} runs!"
+
+        f = self.result_frame
+        for w in f.winfo_children(): w.destroy()
+        tk.Label(f, text="🏆 Match Over", font=("Arial", 24, "bold"), fg="white", bg="#1e1e2e").pack(pady=18)
+        tk.Label(f, text=msg, font=("Arial", 18, "bold"), fg="yellow", bg="#1e1e2e").pack(pady=8)
+        tk.Button(f, text="Play Again", command=self.restart, bg="#0d6efd", fg="white", font=("Arial", 14, "bold"), width=12).pack(pady=8)
+        tk.Button(f, text="Exit", command=self.root.destroy, bg="#dc3545", fg="white", font=("Arial", 14, "bold"), width=12).pack(pady=8)
+        self.show(f)
+
+    # ================== RESTART ==================
+    def restart(self):
+        # reset to defaults and go back to setup
+        self.player_team = "India"
+        self.opponent_team = "Pakistan"
+        self.overs = 2
+        self.wickets = 3
+        self.player_selected_names = []
+        self.opponent_selected_names = []
+        self.balls_left = 0
+        self.score = 0
+        self.outs = 0
+        self.target = None
+        self.batting_first = True
+        self.innings = 1
+        self.build_setup_ui()
+        self.show(self.setup_frame)
+
+
+# ---------------------- RUN ----------------------
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = HandCricketApp(root)
+    root.mainloop()
